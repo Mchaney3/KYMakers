@@ -13,3 +13,6 @@
 [submodule "DEV/ESP32/Grbl_Esp32"]
 	path = DEV/ESP32/Grbl_Esp32
 	url = https://github.com/bdring/Grbl_Esp32.git
+[submodule "DEV/ESP32/ESP32"]
+	path = DEV/ESP32/ESP32
+	url = https://github.com/DroneBridge/ESP32.git
