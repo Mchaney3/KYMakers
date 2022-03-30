@@ -1,3 +1,6 @@
 [submodule "DEV/Arduino/libraries/esp32cam"]
 	path = DEV/Arduino/libraries/esp32cam
 	url = https://github.com/yoursunny/esp32cam
+[submodule "DEV/Arduino/libraries/SdFat"]
+	path = DEV/Arduino/libraries/SdFat
+	url = https://github.com/greiman/SdFat
