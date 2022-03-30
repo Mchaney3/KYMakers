@@ -10,3 +10,6 @@
 [submodule "DEV/Arduino/libraries/WS2812FX"]
 	path = DEV/Arduino/libraries/WS2812FX
 	url = https://github.com/kitesurfer1404/WS2812FX.git
+[submodule "DEV/ESP32/Grbl_Esp32"]
+	path = DEV/ESP32/Grbl_Esp32
+	url = https://github.com/bdring/Grbl_Esp32.git
