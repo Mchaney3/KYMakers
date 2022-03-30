@@ -1,3 +1,6 @@
 [submodule "Projects/ESP32/DroneBridge"]
 	path = Projects/ESP32/DroneBridge
 	url = https://github.com/DroneBridge/ESP32.git
+[submodule "Projects/ESP32/Grbl_Esp32"]
+	path = Projects/ESP32/Grbl_Esp32
+	url = https://github.com/bdring/Grbl_Esp32.git
