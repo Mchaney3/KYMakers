@@ -31,3 +31,6 @@
 [submodule "Projects/OttoMower"]
 	path = Projects/OttoMower
 	url = https://github.com/lucabiasotto/OttoMower
+[submodule "Projects/Android-Controlled-Lawn-Mower"]
+	path = Projects/Android-Controlled-Lawn-Mower
+	url = https://github.com/mbaker92/Android-Controlled-Lawn-Mower.git
