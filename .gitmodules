@@ -16,3 +16,18 @@
 [submodule "DEV/ESP32/ESP32"]
 	path = DEV/ESP32/ESP32
 	url = https://github.com/DroneBridge/ESP32.git
+[submodule "Projects/lawndroid"]
+	path = Projects/lawndroid
+	url = https://github.com/mrantonwinter/lawndroid
+[submodule "Projects/OpenMower"]
+	path = Projects/OpenMower
+	url = https://github.com/ClemensElflein/OpenMower.git
+[submodule "Projects/Lawn-Mower-Robot-Arduino"]
+	path = Projects/Lawn-Mower-Robot-Arduino
+	url = https://github.com/xmow49/Lawn-Mower-Robot-Arduino.git
+[submodule "Projects/mowerBot"]
+	path = Projects/mowerBot
+	url = https://github.com/jefure/mowerBot.git
+[submodule "Projects/OttoMower"]
+	path = Projects/OttoMower
+	url = https://github.com/lucabiasotto/OttoMower
