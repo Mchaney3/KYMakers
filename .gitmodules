@@ -7,3 +7,6 @@
 [submodule "DEV/Arduino/libraries/TFT_eSPI"]
 	path = DEV/Arduino/libraries/TFT_eSPI
 	url = https://github.com/Bodmer/TFT_eSPI.git
+[submodule "DEV/Arduino/libraries/WS2812FX"]
+	path = DEV/Arduino/libraries/WS2812FX
+	url = https://github.com/kitesurfer1404/WS2812FX.git
