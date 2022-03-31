@@ -3,19 +3,23 @@
 ## RC Receiver
 ## AutoPilot
 
+
 # Cut
 ## Motor(s)
 ## Blade(s)
 ## SAFETY
 
+
 # Object Detection
 ## Ultrasonic Sensor
 ## Servo
+
 
 # Tracking
 ## SD Card
 ## HMC5883 (Compass)
 ## GPS
+
 
 # Interface
 ## Buzzer
