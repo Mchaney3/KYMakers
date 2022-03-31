@@ -1,0 +1,28 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Simple_HCSR04	KEYWORD1
+Measurement		KEYWORD1
+
+Simple_HCSR04	KEYWORD3
+Measurement		KEYWORD3
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+mm				KEYWORD2
+cm				KEYWORD2
+dm				KEYWORD2
+m				KEYWORD2
+getEchoPin		KEYWORD2
+getTrigPin		KEYWORD2
+measure			KEYWORD2
+
+######################################
+# Constants (LITERAL1)
+#######################################
+
+ECHO_PIN	LITERAL1
+TRIG_PIN	LITERAL1
