@@ -13,7 +13,7 @@ PixHawk 4 to start with. This is the expensive option. Final version should run 
 # Cut
 
 ## Motor(s)
-###Need to get Shaft diameter for blade
+### Need to get Shaft diameter for blade
 Will use 2200kv brushless and 30 amp ESC for v1. 
 
 ## Blade(s)
