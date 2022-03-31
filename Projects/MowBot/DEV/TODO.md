@@ -1,3 +1,11 @@
+# Ground Station
+
+## Real Time reliable Connectivity with MowBot
+Ground station will be relay for MowBot to the AXS Technology Cloud. Will likely use a Raspberry pi here. Can run a web interface to display real time info but may not be necessary. May be able to provide dashboard to users from Blynk.
+
+## Charge Dock
+
+
 # Drive
 
 ## L298N Motor Driver
