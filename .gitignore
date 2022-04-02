@@ -1,32 +1,3 @@
-Skip to content
-Search or jump to…
-Pulls
-Issues
-Marketplace
-Explore
- 
-@Mchaney3 
-Mchaney3
-/
-KYMakers
-Public
-Code
-Issues
-Pull requests
-Actions
-Projects
-Wiki
-Security
-Insights
-More
-KYMakers/.gitignore
-@Mchaney3
-Mchaney3 Initial commit
-Latest commit 8b163f3 4 days ago
- History
- 1 contributor
-32 lines (26 sloc)  270 Bytes
-   
 # Prerequisites
 *.d
 
@@ -59,19 +30,8 @@ Latest commit 8b163f3 4 days ago
 *.exe
 *.out
 *.app
-© 2022 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-Loading complete
+
+# Others
 .DS_Store
 .vscode
 Thumbs.db
