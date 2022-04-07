@@ -12,6 +12,13 @@
 
 #include "defines.h"
 
+#include <IBusBM.h>
+#include <ESP32Servo.h>
+Servo Motor1;
+Servo Motor2;
+Servo UltrasonicSensorServo;
+IBusBM IBus; // IBus object for receivig signals from transmitter/receiver
+
 #include <Ticker.h>
 //#include <DHT.h>        // https://github.com/adafruit/DHT-sensor-library
 
@@ -28,7 +35,7 @@ esp32FOTA esp32FOTA("s3-arnold", 2, false, true);
 
 #include <Adafruit_NeoPixel.h>
 
-#define PIN 48
+#define PIN -1
 #define NUM 1
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUM,PIN, NEO_GRB + NEO_KHZ800);
@@ -349,6 +356,17 @@ void setup()
 
   pixels.begin();
 
+  IBus.begin(Serial2,1);    // iBUS object connected to serial2 RX2 pin and use timer 1
+  Motor1.attach(Motor1Pin); // attaches the servo on pin 18 to the servo object (using timer 0)
+  Motor2.attach(Motor2Pin);
+  UltrasonicSensorServo.attach(UltrasonicServoPin);
+  Serial.println("Start IBus2PWM_ESP32");
+
+  
+  Serial.println("Wait for receiver");
+  while (IBus.cnt_rec==0) delay(100);
+  Serial.println("Init done");
+
   ////////////////// Tasks creation //////////////////
 /*
 #if (BLYNK_WM_RTOS_DEBUG > 0)
@@ -372,6 +390,37 @@ void setup()
   ////////////////// End Tasks creation //////////////////
 }
 
+int savespd=0, saveturn=0, saveval=0;
+
+// braking not used in thix example
+void brake(int brakePower) {
+//  Motor1.brake(brakePower);
+//  Motor2.brake(brakePower);
+}
+
+void speedturn(int speed, int angle) {
+  // set speed (-400 -> +400) and turn (-400 -> +400)
+  // turn vehicle by providing different speed settings to the motors.
+  // angle can be positive (right turn) or negative (left turn).
+  // If the vehicle is already stopped, the vehicle will turn in place.
+//  Motor1.setSpeed(speed + angle);
+//  Motor2.setSpeed(speed - angle);
+  int Motor1Speed = (speed + angle);
+  int Motor2Speed = (speed - angle);
+  int MotorSpeedForward = map(Motor1Speed, 197, 420, 0, 255);
+  int MotorSpeedBackward = map(Motor1Speed, 197, 0, 0, 255);
+
+  // if (MotorSpeedForward > 0) {
+      // Forward(MotorSpeedForward);
+      // }
+
+  
+  Serial.print("Forward Speed: "); Serial.println(MotorSpeedForward);
+  Serial.print("Backward Speed: "); Serial.println(MotorSpeedBackward);
+  Serial.print("Motor 1 Speed: "); Serial.println(Motor1Speed);
+  Serial.print("Motor 2 Speed: "); Serial.println(Motor2Speed);
+}
+
 void CheckForOTA() {
   bool updatedNeeded = esp32FOTA.execHTTPcheck();
   if (updatedNeeded)
@@ -388,7 +437,26 @@ void loop()
 {
   // No more Blynk.run() and timer.run() here. All is tasks
   CheckForOTA();
-  delay(2000);
+  
+  int spd, turn;
+  // speed depends on front switch (channel 5) (forward/backwards) and channel 2 (speed)
+  spd = ((int) IBus.readChannel(1)-1050); // Using right thumb stick to control forward and reverse
+  // every value below 1050 we interprete as stop 
+  if (spd<0) spd=0; else spd = (spd*4)/9; // value could reach (2000-1050)*4/9 = 422, but setspeed() will max at 400
+  //if (IBus.readChannel(5)>1500) spd=-spd; // backward/forward depends on switch at channel 5
+  
+  // turn depends on channel 0, scale down to -200, +200
+  turn = (((int) IBus.readChannel(0)-1500)*4)/10; 
+
+  // set combined speed and turn (if speed==0, then only turn in place)
+  speedturn(spd, turn);
+
+  if (savespd != spd || saveturn != turn) {
+    Serial.print("speed="); Serial.print(spd); // display speed
+    Serial.print(" turn="); Serial.println(turn); // display turn 
+    savespd = spd;
+    saveturn = turn;
+  }
 }
 
 BLYNK_WRITE(V48)

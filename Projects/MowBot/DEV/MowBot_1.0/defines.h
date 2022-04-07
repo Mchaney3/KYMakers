@@ -24,6 +24,10 @@
 #ifndef defines_h
 #define defines_h
 
+#define Motor1Pin 2
+#define Motor2Pin 4
+#define UltrasonicServoPin 5
+
 #if !( defined(ESP32) )
   #error This code is intended to run on the ESP32 platform! Please check your Tools->Board setting.
 #elif ( ARDUINO_ESP32S2_DEV || ARDUINO_FEATHERS2 || ARDUINO_ESP32S2_THING_PLUS || ARDUINO_MICROS2 || \
@@ -163,8 +167,8 @@
   #endif
   
   char auth[]     = "ae865bf3430b4f6fb51cf9574cbed96b";
-  char ssid[]     = "chlabs_bot";
-  char pass[]     = "chlabsrobotseverywhere";
+  char ssid[]     = "Crawdaddy1";
+  char pass[]     = "Retr0C0rning1011";
 
 #endif
 

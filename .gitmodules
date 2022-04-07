@@ -22,3 +22,6 @@
 [submodule "Arduino/libraries/LITTLEFS"]
 	path = Arduino/libraries/LITTLEFS
 	url = https://github.com/lorol/LITTLEFS.git
+[submodule "Arduino/libraries/Arduino-HMC5883L"]
+	path = Arduino/libraries/Arduino-HMC5883L
+	url = https://github.com/jarzebski/Arduino-HMC5883L.git
