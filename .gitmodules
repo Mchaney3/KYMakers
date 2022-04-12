@@ -25,3 +25,6 @@
 [submodule "Arduino/libraries/Arduino-HMC5883L"]
 	path = Arduino/libraries/Arduino-HMC5883L
 	url = https://github.com/jarzebski/Arduino-HMC5883L.git
+[submodule "Projects/MowBot/DEV/Mowbot_2.0/RCTankApp"]
+	path = Projects/MowBot/DEV/Mowbot_2.0/RCTankApp
+	url = https://github.com/having11/RCTankApp.git

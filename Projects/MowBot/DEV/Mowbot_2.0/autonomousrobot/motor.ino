@@ -1,11 +1,23 @@
 // Pull code from the RobotCar example for ESP32 under iBusBM Examples
 
-#define Pin_D1_R  40
-#define Pin_D2_R  42
-#define Pin_E_R   44
-#define Pin_E_L   46
-#define Pin_D1_L  48
-#define Pin_D2_L  50
+/*
+ * L298N Motor 1 Pin IN1 = Mega Digital Pin 2
+ * L298N Motor 1 Pin IN2 = Mega Digital Pin 3
+ * L298N Motor 1 Pin PWM (Speed Control) = Mega Digital Pin 6
+ * 
+ * L298N Motor 2 Pin IN3 = Mega Digital Pin 4
+ * L298N Motor 2 Pin IN4 = Mega Digital Pin 5
+ * L298N Motor 2 Pin PWM (Speed Control) = Mega Digital Pin 7
+ */
+
+#define Pin_D1_R  2
+#define Pin_D1_L  3
+#define Pin_D2_R  4
+#define Pin_D2_L  5
+#define Pin_E_R   6
+#define Pin_E_L   7
+
+
 
 void setup_motor()
 {

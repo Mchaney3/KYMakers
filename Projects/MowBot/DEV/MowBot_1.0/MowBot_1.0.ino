@@ -16,6 +16,7 @@
 #include <ESP32Servo.h>
 Servo Motor1;
 Servo Motor2;
+Servo Blade;
 Servo UltrasonicSensorServo;
 IBusBM IBus; // IBus object for receivig signals from transmitter/receiver
 
@@ -356,7 +357,7 @@ void setup()
 
   pixels.begin();
 
-  IBus.begin(Serial2,1);    // iBUS object connected to serial2 RX2 pin and use timer 1
+  IBus.begin(Serial1);    // iBUS object connected to serial2 RX2 pin and use timer 1
   Motor1.attach(Motor1Pin); // attaches the servo on pin 18 to the servo object (using timer 0)
   Motor2.attach(Motor2Pin);
   UltrasonicSensorServo.attach(UltrasonicServoPin);
@@ -410,8 +411,12 @@ void speedturn(int speed, int angle) {
   int MotorSpeedForward = map(Motor1Speed, 197, 420, 0, 255);
   int MotorSpeedBackward = map(Motor1Speed, 197, 0, 0, 255);
 
-  // if (MotorSpeedForward > 0) {
-      // Forward(MotorSpeedForward);
+  // if (MotorSpeedForward >= 0) {
+      // MoveForward(MotorSpeedForward); // Build This function
+      // }
+
+  // if (MotorSpeedBackward <= 0) {
+      // MoveForward(MotorSpeedBackward); // Build this function
       // }
 
   

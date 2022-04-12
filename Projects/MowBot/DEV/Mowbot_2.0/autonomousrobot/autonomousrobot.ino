@@ -16,7 +16,7 @@ int headingError;               // signed (+/-) difference between targetHeading
 
 #include "math.h"
 #include <Adafruit_GPS.h>
-Adafruit_GPS GPS(&Serial2);
+Adafruit_GPS GPS(&Serial1);
 float currentLat,
       currentLong;
 
@@ -37,15 +37,15 @@ float targetLat = waypointList[0][0];
 float targetLong = waypointList[0][1];
 void setup()
 {
-  Serial.begin(9600);         //Debug
+  Serial.begin(115200);         //Debug
   //Serial3.begin(9600);       //Bluetooth
-  Serial2.begin(9600);        //GPS
+  //Serial1.begin(9600);        //GPS
 
-  pinMode(19, INPUT_PULLUP);
+  pinMode(17, INPUT_PULLUP);
   setup_motor();
 
 
-  GPS.begin(9600);                                // 9600 NMEA default speed
+  GPS.begin(GPSBaud);                                // 9600 NMEA default speed
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);     // turns on RMC and GGA (fix data)
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);       // 1 Hz update rate
   GPS.sendCommand(PGCMD_NOANTENNA);                // turn off antenna status info
@@ -89,10 +89,10 @@ int aprint = 0;
 
 void loop()
 {
-  int sensorVal = digitalRead(19);
+  int sensorVal = digitalRead(17);
 
-  while (Serial2.available() > 0)
-    if (gps.encode(Serial2.read()))
+  while (Serial1.available() > 0)
+    if (gps.encode(Serial1.read()))
       processGPS();
 
   /////////////////////////Data dari hp
@@ -142,11 +142,11 @@ void loop()
     {
       nprint = 0;
 
-     // Serial3.print("la "); Serial3.print(currentLat, 6);
-      //Serial3.print("_lo "); Serial3.print(currentLong, 6);
-      //Serial3.print("_la "); Serial3.print(targetLat, 6);
-      //Serial3.print("_lo "); Serial3.print(targetLong, 6);
-      //Serial3.println();
+     Serial.print("la "); Serial.print(currentLat, 6);
+      Serial.print("_lo "); Serial.print(currentLong, 6);
+      Serial.print("_la "); Serial.print(targetLat, 6);
+      Serial.print("_lo "); Serial.print(targetLong, 6);
+      Serial.println();
     }
   }
   else if (sensorVal == LOW)
@@ -169,12 +169,12 @@ void loop()
       if (aprint == 200 )
       {
         aprint = 0;
-        //Serial3.print("wp "); Serial3.print(current_waypoint);
-        //Serial3.print("_ch "); Serial3.print(currentHeading);
-        //Serial3.print("_th "); Serial3.print(targetHeading);
-        //Serial3.print("_eh "); Serial3.print(headingError);
-        //Serial3.print("_di "); Serial3.print(distanceToTarget);
-        //Serial3.println();
+        Serial.print("wp "); Serial.print(current_waypoint);
+        Serial.print("_ch "); Serial.print(currentHeading);
+        Serial.print("_th "); Serial.print(targetHeading);
+        Serial.print("_eh "); Serial.print(headingError);
+        Serial.print("_di "); Serial.print(distanceToTarget);
+        Serial.println();
       }
 
     }
@@ -287,7 +287,7 @@ void nextWaypoint()
   if ((targetLat == 0 && targetLong == 0))    // last waypoint reached?
   {
     berhenti();
-    //Serial3.println("FINISH");
+    Serial.println("FINISH");
     while (1); //PRESS RESET BUTTON
   }
   else
