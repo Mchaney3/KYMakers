@@ -84,7 +84,7 @@ void setup() {
     //start blynk
     Serial.println("Start Blynk");
     Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
-    
+    initOTA();
     Serial.println("Activating GPS");
     Wire.begin(SDAPin, SCLPin); //I2C bus, for compass and sonar sensors
     /* Initialise the compass sensor */
@@ -121,6 +121,7 @@ void setup() {
 }
 
 void loop() {
+    ArduinoOTA.handle();
     timer.run();//update sensors and send info to cellphone
     Blynk.run();
     updateGPS(); //read messages from GPS sensor
