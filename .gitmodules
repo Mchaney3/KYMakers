@@ -28,3 +28,6 @@
 [submodule "Projects/MowBot/DEV/Mowbot_2.0/RCTankApp"]
 	path = Projects/MowBot/DEV/Mowbot_2.0/RCTankApp
 	url = https://github.com/having11/RCTankApp.git
+[submodule "Arduino/libraries/Mecha_QMC5883L"]
+	path = Arduino/libraries/Mecha_QMC5883L
+	url = https://github.com/keepworking/Mecha_QMC5883L.git

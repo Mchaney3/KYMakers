@@ -26,7 +26,7 @@ int distanceToTarget,            // current distance to target (current waypoint
 int current_waypoint = 0;
 // GESER KESELATAN -lat
 float waypointList[10][2] = {
-  { 37.887625, -84.567964},
+  { -7.297828, 112.801938},
   { -7.297885, 112.802251}, //-7.297873, 112.802250
   { -7.297931, 112.802584}, //-7.297925, 112.802584 //-7.298058, 112.803043
 };
@@ -64,7 +64,7 @@ void setup()
   // Set number of samples averaged
   compass.setSamples(HMC5883L_SAMPLES_8);
   // Set calibration offset. See HMC5883L_calibration.ino
-  compass.setOffset(20, -97);
+  compass.setOffset(0, 0);
   Serial.println("Start");
 
   Serial.println(waypointList[0][0], 6);
@@ -92,7 +92,7 @@ void loop()
   while (Serial3.available() > 0)
     if (gps.encode(Serial3.read()))
       processGPS();
-/*
+
   /////////////////////////Data dari hp
   if (stringComplete)
   {
@@ -127,15 +127,14 @@ void loop()
   }
 
 
-  if (sensorVal == LOW)
-//  if (sensorValBool == TRUE)
+  if (sensorVal == HIGH)
   {
     berhenti();
-        Serial.print("la "); Serial.print(currentLat, 6);
-        Serial.print("_lo "); Serial.print(currentLong, 6);
-        Serial.print("_la "); Serial.print(targetLat, 6);
-        Serial.print("_lo "); Serial.print(targetLong, 6);
-        Serial.println();
+    //    Serial.print("la "); Serial.print(currentLat, 6);
+    //    Serial.print("_lo "); Serial.print(currentLong, 6);
+    //    Serial.print("_la "); Serial.print(targetLat, 6);
+    //    Serial.print("_lo "); Serial.print(targetLong, 6);
+    //    Serial.println();
     nprint++;
     if (nprint == 10000)
     {
@@ -148,24 +147,22 @@ void loop()
       Serial2.println();
     }
   }
-  else if (sensorVal == HIGH)
- // else if (sensorValBool == FALSE)
+  else if (sensorVal == LOW)
   {
     // memastikan ada data GPS di robot dan HP
     if (currentLong > 1 && targetLong > 1)
     {
-      */
       currentHeading = readCompass();
       calcDesiredTurn();
       move_robot();
 
-            Serial.print("_ch "); Serial.print(currentHeading);
-            Serial.print("_th "); Serial.print(targetHeading);
-            Serial.print("_eh "); Serial.print(headingError);
-            Serial.print("_di "); Serial.print(distanceToTarget);
-            Serial.println();
+      //      Serial.print("_ch "); Serial.print(currentHeading);
+      //      Serial.print("_th "); Serial.print(targetHeading);
+      //      Serial.print("_eh "); Serial.print(headingError);
+      //      Serial.print("_di "); Serial.print(distanceToTarget);
+      //      Serial.println();
 
-/*
+
       aprint++;
       if (aprint == 200 )
       {
@@ -184,7 +181,6 @@ void loop()
       berhenti();
     }
   }
-  */
 }
 
 void processGPS()
