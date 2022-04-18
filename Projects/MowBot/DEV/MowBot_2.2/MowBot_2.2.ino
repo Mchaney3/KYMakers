@@ -32,7 +32,10 @@ const int blynkPortHTTP = 8181;
 //Objects representing Blynk LCD and map widgets
 WidgetLCD lcd(V4);
 WidgetMap myMap(V3);
-String robotLabel= "MowBot"; //for labeling rover on the map
+
+/* ************  OTA Setup     ************ */
+char robotLabel[] = "MowBot"; //for labeling rover on the map
+char otaHash[] = "21232f297a57a5a743894a0e4a801fc3";
 
 /* ************  Timer object  ************ */
 SimpleTimer timer; //to control periodic querying sensors and sending  data to Blynk
@@ -84,6 +87,9 @@ void setup() {
     //start blynk
     Serial.println("Start Blynk");
     Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
+    ArduinoOTA.setHostname(robotLabel);
+    ArduinoOTA.setPasswordHash(otaHash);
+    
     initOTA();
     Serial.println("Activating GPS");
     Wire.begin(SDAPin, SCLPin); //I2C bus, for compass and sonar sensors
@@ -115,7 +121,7 @@ void setup() {
     // but for blynk's public servers, this will lead to flood errors
     timer.setInterval(1000L, periodicUpdate);
     // put target on map
-    myMap.location(1, TARGET_LAT, TARGET_LNG, "TARGET");
+    myMap.location(1, TARGET_LAT, TARGET_LNG, "Waypoint 1");
     myMap.location(2, gps.location.lat(), gps.location.lng(), robotLabel);
     
 }
@@ -206,12 +212,12 @@ void periodicUpdate() {
         lcd.print(0, 0, line1);
         lcd.print(0, 1, line2);
         //update position on map
+        myMap.location(1, TARGET_LAT, TARGET_LNG, "Waypoint 1");
         myMap.location(2, gps.location.lat(), gps.location.lng(), robotLabel);
     } else {
         //position is old
         lcd.print(0, 0, "GPS lost");
     }
-    Serial.println("alive");
 }
 
 
@@ -262,8 +268,6 @@ BLYNK_WRITE(V7) {//joystick input from the app
     float powerRight = (y + x) / 512.0;
     if (!autonomous) {
         setMotors(powerLeft, powerRight);
-    } else {
-      Serial.print("powerLeft: "); Serial.print(powerLeft); Serial.print("\npowerRight: "); Serial.println(powerRight);
     }
 }
 /*
@@ -300,5 +304,5 @@ void setMotors(float left, float right) {
         analogWrite(Motor2aPin, -right * 1023);
         analogWrite(Motor2bPin, 0);
     }
-    Serial.print("Left: "); Serial.print(left); Serial.print("\nRight: "); Serial.println(right);
+    //Serial.print("Left: "); Serial.print(left); Serial.print("\nRight: "); Serial.println(right);
 }
