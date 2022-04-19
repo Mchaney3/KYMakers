@@ -35,7 +35,7 @@ WidgetMap myMap(V3);
 
 /* ************  OTA Setup     ************ */
 char robotLabel[] = "MowBot"; //for labeling rover on the map
-char otaHash[] = "21232f297a57a5a743894a0e4a801fc3";
+char otaHash[] = "ee59085accf685157a4c8cb7d1a76887";
 
 /* ************  Timer object  ************ */
 SimpleTimer timer; //to control periodic querying sensors and sending  data to Blynk
@@ -51,10 +51,12 @@ static const int RXPin = 18, // the serial connection to GPS. Note that RX, TX
 /* ************  GPS and compass  ************ */
 static const float Xoffset=20, Yoffset=-97;     // offsets for magnetometer readings                 
 static const uint32_t GPSBaud = 9600;        //GPS sensor serial baud rate
-static float declinationAngle = -5.45;        //magnetic declination angle
+//The angle in radians is equal to the degrees multiplied by 0.017453.
+//my declination is -5 degrees 45 minutes or 5.75 degrees. -5.75 * 0.017453
+static float declinationAngle = -0.100356;        //magnetic declination angle
 static const double TARGET_LAT=37.890482, TARGET_LNG=-84.561531;    //coordinates of target
 Adafruit_HMC5883_Unified compass = Adafruit_HMC5883_Unified(12345); // compass object; ID is random
-TinyGPSPlus gps;                             // The TinyGPS++ object
+TinyGPSPlus gps;         // The TinyGPS++ object
 
 /* ************  Sonar  ************ */
 //DualSonar mySonar(0x11); 
@@ -145,6 +147,7 @@ void loop() {
         if (error < -180 ) error+=360;
         //set course 
         setMotors (60+Kp*error, 60-Kp*error);
+        Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); Serial.println(60-Kp*error);
     }
     
 }
@@ -165,7 +168,7 @@ void initOTA()  {
       Serial.println("\nEnd");
     })
     .onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+      Serial.printf("OTA Update Progress: %u%%\r", (progress / (total / 100)));
     })
     .onError([](ota_error_t error) {
       Serial.printf("Error[%u]: ", error);
