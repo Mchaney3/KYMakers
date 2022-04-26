@@ -86,7 +86,7 @@
  * will be defined. If ENABLE_EXTENDED_TRANSFER_CLASS is also nonzero,
  * the class SdFatSoftSpiEX will be defined.
  */
-#define ENABLE_SOFTWARE_SPI_CLASS 0
+#define ENABLE_SOFTWARE_SPI_CLASS 1
 //------------------------------------------------------------------------------
 /** If the symbol USE_FCNTL_H is nonzero, open flags for access modes O_RDONLY,
  * O_WRONLY, O_RDWR and the open modifiers O_APPEND, O_CREAT, O_EXCL, O_SYNC
@@ -120,7 +120,7 @@
  * updated.  This will increase the speed of the freeClusterCount() call
  * after the first call.  Extra flash will be required.
  */
-#define MAINTAIN_FREE_CLUSTER_COUNT 0
+#define MAINTAIN_FREE_CLUSTER_COUNT 1
 //------------------------------------------------------------------------------
 /**
  * To enable SD card CRC checking set USE_SD_CRC nonzero.
@@ -157,7 +157,7 @@
  *
  * Causes use of lots of heap in ARM.
  */
-#define DESTRUCTOR_CLOSES_FILE 0
+#define DESTRUCTOR_CLOSES_FILE 1
 //------------------------------------------------------------------------------
 /**
  * Call flush for endl if ENDL_CALLS_FLUSH is nonzero

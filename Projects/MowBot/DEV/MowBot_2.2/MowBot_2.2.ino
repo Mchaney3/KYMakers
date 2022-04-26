@@ -10,6 +10,35 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <SPI.h>
+#include "SdFat.h"
+
+
+/********************  SD Card Setup  *************/
+// Pin numbers in templates must be constants.
+const uint8_t SOFT_MISO_PIN = 27;
+const uint8_t SOFT_MOSI_PIN = 26;
+const uint8_t SOFT_SCK_PIN  = 25;
+//
+// Chip select may be constant or RAM variable.
+const uint8_t SD_CHIP_SELECT_PIN = 32;
+
+// SdFat software SPI template
+SdFatSoftSpi<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> sd;
+
+// File system object.
+//SdFat sd;  //  Not used when utilizing SoftSPI
+
+// Directory file.
+SdFile root;
+
+// Use for file creation in folders.
+SdFile file;
+
+//==============================================================================
+// Error messages stored in flash.
+#define error(msg) sd.errorHalt(F(msg))
+//------------------------------------------------------------------------------
 
 /* ************  Blynk setup  ************ */
 char auth[] = "6f1da165f66a4fd8871543f6b65a9dc4"; //auth token
@@ -27,6 +56,8 @@ const int blynkPortHTTP = 8181;
  * V5: left sonar
  * V6: right sonar
  * V7: joystick (array of two values, range -512 to 512 for each)
+ * v8: left Motor Output
+ * v9: Right Motor Output
  * 
  */
 //Objects representing Blynk LCD and map widgets
@@ -62,7 +93,7 @@ TinyGPSPlus gps;         // The TinyGPS++ object
 //DualSonar mySonar(0x11); 
 
 /* ************  Global variables  ************ */
-bool autonomous=true, 
+bool autonomous=false, 
     heartbeat=true;
 float distance=1000,  ///distance to target, in meters
       Kp=0.5,         // coefficient  for proportional steering
@@ -85,14 +116,38 @@ void setup() {
     Serial.begin(115200);       // serial connection for debugging
     Serial2.begin(GPSBaud);        //software serial connection to GPS
 
+    /***************** SD CARD INIT - CONVERT TO FUNCTION  ***********/
+    /*
+    while (!Serial) {
+    SysCall::yield();
+  }
+  Serial.println("Type any character to start");
+  while (!Serial.available()) {
+    SysCall::yield();
+  }
+*/
+  if (!sd.begin(SD_CHIP_SELECT_PIN)) {
+    sd.initErrorHalt();
+  }
+
+  if (!file.open("SoftSPI.txt", O_RDWR | O_CREAT)) {
+    sd.errorHalt(F("open failed"));
+  }
+  file.println(F("This line was printed using software SPI."));
+
+  file.rewind();
+  
+  while (file.available()) {
+    Serial.write(file.read());
+  }
+  delay(5000);
+
+  file.close();
+
+  Serial.println(F("SD Card Initialized"));
+
+  /****************** FINISHED SD CARD INIT  ********************/
     
-    //start blynk
-    Serial.println("Start Blynk");
-    Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
-    ArduinoOTA.setHostname(robotLabel);
-    ArduinoOTA.setPasswordHash(otaHash);
-    
-    initOTA();
     Serial.println("Activating GPS");
     Wire.begin(SDAPin, SCLPin); //I2C bus, for compass and sonar sensors
     /* Initialise the compass sensor */
@@ -121,11 +176,16 @@ void setup() {
     // if you are using local blynk srever, you shoudl certainly send data more frequently, 
     // e.g. every 250ms
     // but for blynk's public servers, this will lead to flood errors
-    timer.setInterval(1000L, periodicUpdate);
-    // put target on map
-    myMap.location(1, TARGET_LAT, TARGET_LNG, "Waypoint 1");
-    myMap.location(2, gps.location.lat(), gps.location.lng(), robotLabel);
-    
+    timer.setInterval(500L, periodicUpdate);
+
+    //start blynk
+    Serial.println("Starting Blynk and enabling OTA");
+    Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
+    initOTA();
+    // put MowBot on the map
+    myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);
+    //myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");
+    Serial.println("MowBot MowBoot SUCCESS!");
 }
 
 void loop() {
@@ -146,13 +206,16 @@ void loop() {
         if (error > 180 ) error-=360;
         if (error < -180 ) error+=360;
         //set course 
+        //setMotors (60+Kp*error, 60-Kp*error);
         setMotors (60+Kp*error, 60-Kp*error);
-        Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); Serial.println(60-Kp*error);
+        //Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); Serial.println(60-Kp*error);
     }
     
 }
 
 void initOTA()  {
+  ArduinoOTA.setHostname(robotLabel);
+  ArduinoOTA.setPasswordHash(otaHash);  
   ArduinoOTA
     .onStart([]() {
       String type;
@@ -180,8 +243,6 @@ void initOTA()  {
     });
 
   ArduinoOTA.begin();
-
-  Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 }
@@ -206,7 +267,7 @@ void periodicUpdate() {
 //    Blynk.virtualWrite(V5, mySonar.distanceL());
 //    Blynk.virtualWrite(V6, mySonar.distanceR());
    
-    //lcd
+    //lcd and map
     lcd.clear();
     if (gps.location.isValid() && (gps.location.age() < 3000)) {
         //position current
@@ -215,8 +276,8 @@ void periodicUpdate() {
         lcd.print(0, 0, line1);
         lcd.print(0, 1, line2);
         //update position on map
-        myMap.location(1, TARGET_LAT, TARGET_LNG, "Waypoint 1");
-        myMap.location(2, gps.location.lat(), gps.location.lng(), robotLabel);
+        myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);
+        myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");
     } else {
         //position is old
         lcd.print(0, 0, "GPS lost");
@@ -257,8 +318,10 @@ BLYNK_WRITE(V0) {
     //if stopped, grey out the joystick
     if (autonomous) {
         Blynk.setProperty(V7, "color", "#000000");
+        Serial.println("Autonomous Mode Enabled");
     } else {
-        Blynk.setProperty(V7, "color", "#00FF00");       
+        Blynk.setProperty(V7, "color", "#00FF00");
+        Serial.println("Autonomous Mode Disabled");    
     }
 }
 
@@ -307,5 +370,7 @@ void setMotors(float left, float right) {
         analogWrite(Motor2aPin, -right * 1023);
         analogWrite(Motor2bPin, 0);
     }
+    Blynk.virtualWrite(V8, left);
+    Blynk.virtualWrite(V9, right);
     //Serial.print("Left: "); Serial.print(left); Serial.print("\nRight: "); Serial.println(right);
 }
