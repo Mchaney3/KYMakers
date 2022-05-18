@@ -1,20 +1,30 @@
 /* ************  Libraries  ************ */
 #include <TinyGPS++.h>
+
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_HMC5883_U.h>
+
 #include <SimpleTimer.h>
+
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <BlynkSimpleEsp32.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-#include <SPI.h>
-#include "SdFat.h"
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <WebSerial.h>
 
+//#include <SPI.h>
+//#include <SdFat.h>
+
+#include "BTS7960.h"
 
 /********************  SD Card Setup  *************/
+
+/* Commented for testing
 // Pin numbers in templates must be constants.
 const uint8_t SOFT_MISO_PIN = 27;
 const uint8_t SOFT_MOSI_PIN = 26;
@@ -39,6 +49,7 @@ SdFile file;
 // Error messages stored in flash.
 #define error(msg) sd.errorHalt(F(msg))
 //------------------------------------------------------------------------------
+*/
 
 /* ************  Blynk setup  ************ */
 char auth[] = "6f1da165f66a4fd8871543f6b65a9dc4"; //auth token
@@ -68,6 +79,20 @@ WidgetMap myMap(V3);
 char robotLabel[] = "MowBot"; //for labeling rover on the map
 char otaHash[] = "ee59085accf685157a4c8cb7d1a76887";
 
+/* *********** WebSerial Setup ************ */
+
+AsyncWebServer server(80);
+
+/* Message callback of WebSerial */
+void recvMsg(uint8_t *data, size_t len){
+  WebSerial.println("Received Data...");
+  String d = "";
+  for(int i=0; i < len; i++){
+    d += char(data[i]);
+  }
+  WebSerial.println(d);
+}
+
 /* ************  Timer object  ************ */
 SimpleTimer timer; //to control periodic querying sensors and sending  data to Blynk
 
@@ -75,9 +100,15 @@ SimpleTimer timer; //to control periodic querying sensors and sending  data to B
 /* ************  Pins setup  ************ */
 static const int RXPin = 18, // the serial connection to GPS. Note that RX, TX
                  TXPin = 17, // refer to 'device view'
-                 SDAPin = 21, SCLPin = 22,//I2C pins
-                 Motor1aPin = 12, Motor1bPin = 13,
-                 Motor2aPin = 14, Motor2bPin = 15;
+                 SDAPin = 21, SCLPin = 22; //I2C pins
+                 //Motor1aPin = 12, Motor1bPin = 13,
+                 //Motor2aPin = 14, Motor2bPin = 15;
+
+const uint8_t EN = 19; // This is two pins going each enable pin. One output with two wires. One enable pin per motor, controllled via one output
+const uint8_t L_PWM = 20; // Left Motor Speed. analogWrite 0 - 255 - Left motor PWM pin
+const uint8_t R_PWM = 21; // Right Motor Speed. analogWrite 0 - 255 - Right motor PWM pin
+
+BTS7960 motorController(EN, L_PWM, R_PWM);
 
 /* ************  GPS and compass  ************ */
 static const float Xoffset=20, Yoffset=-97;     // offsets for magnetometer readings                 
@@ -86,7 +117,7 @@ static const uint32_t GPSBaud = 9600;        //GPS sensor serial baud rate
 //my declination is -5 degrees 45 minutes or 5.75 degrees. -5.75 * 0.017453
 static float declinationAngle = -0.100356;        //magnetic declination angle
 static const double TARGET_LAT=37.890482, TARGET_LNG=-84.561531;    //coordinates of target
-Adafruit_HMC5883_Unified compass = Adafruit_HMC5883_Unified(12345); // compass object; ID is random
+Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345); // compass object; ID is random
 TinyGPSPlus gps;         // The TinyGPS++ object
 
 /* ************  Sonar  ************ */
@@ -107,25 +138,28 @@ float distance=1000,  ///distance to target, in meters
  *************************************************/
 
 void setup() {
-    //set up motor pins
-    pinMode(Motor1aPin, OUTPUT);
-    pinMode(Motor1bPin, OUTPUT);
-    pinMode(Motor2aPin, OUTPUT);
-    pinMode(Motor2bPin, OUTPUT);
+    //set up motor pins - Not needed for BTS7960 Library
+    //pinMode(Motor1aPin, OUTPUT);
+    //pinMode(Motor1bPin, OUTPUT);
+    //pinMode(Motor2aPin, OUTPUT);
+    //pinMode(Motor2bPin, OUTPUT);
+    motorController.Enable();
     
     Serial.begin(115200);       // serial connection for debugging
     Serial2.begin(GPSBaud);        //software serial connection to GPS
 
     /***************** SD CARD INIT - CONVERT TO FUNCTION  ***********/
-    /*
+    /* DISABLED FOR TESTING
     while (!Serial) {
     SysCall::yield();
   }
-  Serial.println("Type any character to start");
+  WebSerial.println("Type any character to start");
   while (!Serial.available()) {
     SysCall::yield();
   }
 */
+
+/* Commenting out for troubleshooting
   if (!sd.begin(SD_CHIP_SELECT_PIN)) {
     sd.initErrorHalt();
   }
@@ -144,14 +178,17 @@ void setup() {
 
   file.close();
 
+* End comment for troubleshooting
+* 
+*/
   Serial.println(F("SD Card Initialized"));
 
-  /****************** FINISHED SD CARD INIT  ********************/
+  /****************** GPS and Compass Init  ********************/
     
     Serial.println("Activating GPS");
-    Wire.begin(SDAPin, SCLPin); //I2C bus, for compass and sonar sensors
+    //Wire.begin(SDAPin, SCLPin); //I2C bus, for compass and sonar sensors
     /* Initialise the compass sensor */
-    if (compass.begin()) {
+    if (mag.begin()) {
         Serial.println("Compass started");
     } else  {
         /* There was a problem detecting the magentometer ... check your connections */
@@ -178,14 +215,27 @@ void setup() {
     // but for blynk's public servers, this will lead to flood errors
     timer.setInterval(500L, periodicUpdate);
 
-    //start blynk
+    /************ Blynk Init which also start WiFi in STA mode *********/
+    
     Serial.println("Starting Blynk and enabling OTA");
     Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
-    initOTA();
     // put MowBot on the map
     myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);
     //myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");
+
+    /*************** Init OTA *****************/
+    initOTA();
+
+    /************** Init Web Serial **************/
+    // WebSerial is accessible at "<IP Address>/webserial" in browser
+    WebSerial.begin(&server);
+    /* Attach Message Callback */
+    WebSerial.msgCallback(recvMsg);
+    server.begin();
     Serial.println("MowBot MowBoot SUCCESS!");
+    Serial.print("Connect to WebSerial at: ");
+    Serial.println(WiFi.localIP());
+    WebSerial.println("MowBot MowBoot SUCCESS!");
 }
 
 void loop() {
@@ -208,7 +258,7 @@ void loop() {
         //set course 
         //setMotors (60+Kp*error, 60-Kp*error);
         setMotors (60+Kp*error, 60-Kp*error);
-        //Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); Serial.println(60-Kp*error);
+        //Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); WebSerial.println(60-Kp*error);
     }
     
 }
@@ -225,26 +275,24 @@ void initOTA()  {
         type = "filesystem";
 
       // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-      Serial.println("Start updating " + type);
+      WebSerial.println("Start updating " + type);
     })
     .onEnd([]() {
-      Serial.println("\nEnd");
+      WebSerial.println("\nEnd");
     })
     .onProgress([](unsigned int progress, unsigned int total) {
       Serial.printf("OTA Update Progress: %u%%\r", (progress / (total / 100)));
     })
     .onError([](ota_error_t error) {
       Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+      if (error == OTA_AUTH_ERROR) WebSerial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) WebSerial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) WebSerial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) WebSerial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) WebSerial.println("End Failed");
     });
 
   ArduinoOTA.begin();
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
 }
 
 //periodic update function: read compass and sonar sensors, sned data to Blynk, etc
@@ -282,6 +330,7 @@ void periodicUpdate() {
         //position is old
         lcd.print(0, 0, "GPS lost");
     }
+    WebSerial.println("Alive");
 }
 
 
@@ -295,7 +344,7 @@ void updateGPS() {
 // Gets new heading info  from compaSerial2. 
 float getHeading() {
     sensors_event_t event; 
-    compass.getEvent(&event);
+    mag.getEvent(&event);
     
     float X,Y;
     // Get x,y components of magnetic field vector; values are in micro-Tesla (uT))
@@ -318,10 +367,10 @@ BLYNK_WRITE(V0) {
     //if stopped, grey out the joystick
     if (autonomous) {
         Blynk.setProperty(V7, "color", "#000000");
-        Serial.println("Autonomous Mode Enabled");
+        WebSerial.println("Autonomous Mode Enabled");
     } else {
         Blynk.setProperty(V7, "color", "#00FF00");
-        Serial.println("Autonomous Mode Disabled");    
+        WebSerial.println("Autonomous Mode Disabled");    
     }
 }
 
@@ -341,7 +390,10 @@ BLYNK_WRITE(V7) {//joystick input from the app
  *  If values are outside of this range, both vlaues will be rescaled:  
  *  e.g., calling setMotors(1.0,2.0) is same as setMotors(0.5, 1.0)
  */
-void setMotors(float left, float right) { 
+void setMotors(float left, float right) {
+  
+
+  
     //compute the max of two numbers. Unfortunately, 
     //usual max macro doesn't work: https://github.com/esp8266/Arduino/issues/398
     // so we make our own
@@ -352,9 +404,29 @@ void setMotors(float left, float right) {
         left = left / m;
         right = right / m;
     }
+
+  if (left <= 0) {
+    left = left*-1;
+  }
+
+  if (right <= 0) {
+    right = right*-1;
+  }
+  Serial.print("RAW Left Motor: "); Serial.print(left); Serial.print(" - RAW Right Motor: "); WebSerial.println(right);
+  int mappedleft = map(left, 0, 0, 1, 255);
+  int mappedright = map(right, 0, 0, 1, 255);
+
+  Serial.print("MAPPED Left Motor: "); Serial.print(mappedleft); Serial.print(" - MAPPED Right Motor: "); WebSerial.println(mappedright);
+
+
+/*  Rewriting this section to use BTS7960 Driver. Should be able to analogWrte 0 - 255 as values, not 0 - 1023    
+ *  Plus we're using an ESP32, not the 8266
+ *  
     // set left motor. Note that for ESP8266, analogWrite expects parameter to be 0-1023:
     // http://esp8266.github.io/Arduino/versions/2.0.0/doc/reference.html#analog-output
     // unlike the usual Arduino, whihc expects range of 0-255
+
+
     if (left > 0) {
         analogWrite(Motor1aPin, 0);
         analogWrite(Motor1bPin, left * 1023);
@@ -370,7 +442,8 @@ void setMotors(float left, float right) {
         analogWrite(Motor2aPin, -right * 1023);
         analogWrite(Motor2bPin, 0);
     }
+    */
     Blynk.virtualWrite(V8, left);
     Blynk.virtualWrite(V9, right);
-    //Serial.print("Left: "); Serial.print(left); Serial.print("\nRight: "); Serial.println(right);
+    //Serial.print("Left: "); Serial.print(left); Serial.print("\nRight: "); WebSerial.println(right);
 }
