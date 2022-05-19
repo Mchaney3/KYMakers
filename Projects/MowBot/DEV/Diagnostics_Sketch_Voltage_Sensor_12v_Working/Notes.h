@@ -27,12 +27,18 @@ This is my truth chart for Motor functionality
 DIRECTION         INPUT 1         INPUT 2         INPUT 3         INPUT 4
 Forward             0               1               1               0
 Backward            1               0               0               1
-Right               0               1               0               0
-Left                0               0               1               0
+Right               0               0               1               0
+Left                0               1               0               0
 Stop                0               0               0               0
+
+
+
 
                                     Dual Track Steer
                         Left Motor                      Right Motor
 DIRECTION         INPUT 1         INPUT 2         INPUT 3         INPUT 4
-Right               0               1               0               1
-Left                1               0               1               0
+Forward             0               1               1               0
+Backward            1               0               0               1
+Right               1               0               1               0
+Left                0               1               0               1
+Stop                0               0               0               0

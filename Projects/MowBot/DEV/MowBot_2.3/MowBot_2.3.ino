@@ -20,7 +20,15 @@
 #include <SPI.h>
 #include <SdFat.h>
 
-/********************  Motor Setup  *************/
+#include <HCSR04.h>
+
+/********************   Voltage Sensor    *********/
+
+const int Analog_channel_pin= 39;
+int ADC_VALUE = 0;
+float voltage_value = 0.0; 
+
+/********************   Motor Setup       *********/
 
 // Right Motor
 int Rt_Motor_Speed = 13; 
@@ -28,9 +36,9 @@ int Rt_Motor_IN3 = 12;
 int Rt_Motor_IN4 = 14;
 
 // Left Motor
-int Lt_Motor_Speed = 2; 
-int Lt_Motor_IN1 = 16; 
-int Lt_Motor_IN2 = 15; 
+int Lt_Motor_Speed = 5; 
+int Lt_Motor_IN1 = 19; 
+int Lt_Motor_IN2 = 2; 
 
 // Setting PWM properties
 const int freq = 30000;
@@ -38,35 +46,38 @@ const int pwmChannelRtMotor = 0;
 const int pwmChannelLtMotor = 0;
 const int resolution = 8;
 int dutyCycle = 200;
+int motorSpeed;
 
 /********************  SD Card Setup  *************/
+#define SD_FAT_TYPE 3
 
-/* Commented for testing
 // Pin numbers in templates must be constants.
-const uint8_t SOFT_MISO_PIN = 27;
-const uint8_t SOFT_MOSI_PIN = 26;
+const uint8_t SOFT_MISO_PIN = 23;
+const uint8_t SOFT_MOSI_PIN = 16;
 const uint8_t SOFT_SCK_PIN  = 25;
 //
 // Chip select may be constant or RAM variable.
-const uint8_t SD_CHIP_SELECT_PIN = 32;
+const uint8_t SD_CS_PIN = 32;
 
 // SdFat software SPI template
-SdFatSoftSpi<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> sd;
+SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
 
 // File system object.
-//SdFat sd;  //  Not used when utilizing SoftSPI
-
-// Directory file.
-SdFile root;
+SdFs sd;
 
 // Use for file creation in folders.
-SdFile file;
+FsFile file;
+
+// Directory file.
+FsFile root;
+
 
 //==============================================================================
 // Error messages stored in flash.
 #define error(msg) sd.errorHalt(F(msg))
 //------------------------------------------------------------------------------
-*/
+
 
 /* ************  Blynk setup  ************ */
 char auth[] = "6f1da165f66a4fd8871543f6b65a9dc4"; //auth token
@@ -74,6 +85,7 @@ char ssid[] = "chlabs_bot"; //wifi credentials
 char pass[] = "chlabsrobotseverywhere";
 char blynkServer[] = "192.168.1.249";
 const int blynkPortHTTP = 8181;
+
 //IPAddress ip =IPAddress(192,168,17,110); //only needed when using private Blynk server
 /* Blynk virtual pins:
  * V0: autononomous on/off switch
@@ -88,6 +100,7 @@ const int blynkPortHTTP = 8181;
  * v9: Right Motor Output
  * 
  */
+ 
 //Objects representing Blynk LCD and map widgets
 WidgetLCD lcd(V4);
 WidgetMap myMap(V3);
@@ -111,16 +124,16 @@ void recvMsg(uint8_t *data, size_t len){
 }
 
 /* ************  Timer object  ************ */
+
 SimpleTimer timer; //to control periodic querying sensors and sending  data to Blynk
 
+/* ************  GPS and compass  ************ */
 
-/* ************  Pins setup  ************ */
 static const int RXPin = 18, // the serial connection to GPS. Note that RX, TX
                  TXPin = 17, // refer to 'device view'
-                 SDAPin = 21, SCLPin = 22; //I2C pins
-
-
-/* ************  GPS and compass  ************ */
+                 SDAPin = 21, 
+                 SCLPin = 22; //I2C pins
+                 
 static const float Xoffset=20, Yoffset=-97;     // offsets for magnetometer readings                 
 static const uint32_t GPSBaud = 9600;        //GPS sensor serial baud rate
 //The angle in radians is equal to the degrees multiplied by 0.017453.
@@ -131,24 +144,143 @@ Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345); // compass objec
 TinyGPSPlus gps;         // The TinyGPS++ object
 
 /* ************  Sonar  ************ */
-//DualSonar mySonar(0x11); 
+
+HCSR04 sonar(26, 27); //initialisation class HCSR04 (trig pin , echo pin)
 
 /* ************  Global variables  ************ */
-bool autonomous=false, 
+bool autonomous=true, 
     heartbeat=true;
 float distance=1000,  ///distance to target, in meters
       Kp=0.5,         // coefficient  for proportional steering
       course=0;       //course to target, in degrees; North=0, West=270
-
-
-
 
 /* ***********************************************
  *  Program begins 
  *************************************************/
 
 void setup() {
+
+  Serial.begin(115200);
   
+  delay(1000);
+
+    /************ Blynk Init which also start WiFi in STA mode *********/
+  
+  Serial.println("Starting Blynk and enabling OTA");
+  Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
+  // put MowBot on the map
+  myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);
+  //myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");
+
+  /*************** Init OTA *****************/
+    
+  initOTA();
+
+  /************** Init Web Serial **************/
+  
+  // WebSerial is accessible at "<IP Address>/webserial" in browser
+  WebSerial.begin(&server);
+  /* Attach Message Callback */
+  WebSerial.msgCallback(recvMsg);
+  server.begin();
+
+  Serial.println("MowBot MowBoot SUCCESS!");
+  Serial.print("Connect to WebSerial at: ");  Serial.print(WiFi.localIP());   Serial.println("/webserial");
+  delay(3000);
+
+/********   Initialize Motors   **********/
+
+  initMotors();
+
+  delay(1000);
+
+  /***************** SD CARD INIT***********/
+
+  initSD();
+
+  delay(1000);
+  
+  /****************** GPS and Compass Init  ********************/
+    
+  Serial.println("Activating GPS");
+  Serial2.begin(GPSBaud);        //software serial connection to
+
+  delay(1000);
+  
+  /* Initialise the compass sensor */
+  if (mag.begin()) {
+      Serial.println("Compass started");
+  } else  {
+    /* There was a problem detecting the magentometer ... check your connections */
+    Serial.println("Problem starting the compass. Please check connections.");  
+  }
+  
+  delay(1000);
+  
+  /****** Run timer for periodicUpdate() - "Scheduled Task"   *******/
+  
+  // setup timer which would call updateSensors function every 1000 ms
+  // if you are using local blynk srever, you shoudl certainly send data more frequently, 
+  // e.g. every 250ms
+  // but for blynk's public servers, this will lead to flood errors
+  timer.setInterval(1000L, periodicUpdate);
+  
+}
+
+void loop() {
+
+  /*********  Check for OTA Update  *********/
+  
+  ArduinoOTA.handle();
+
+  /*********  Run Periodic Updates  *********/
+  
+  timer.run();//update sensors and send info to cellphone
+
+  /*********  Phone home To Blynk Server  *********/
+  
+  Blynk.run();
+
+  /*********  Get latest GPS info  *********/
+  
+  updateGPS(); //read messages from GPS sensor
+
+  /*********  Process Waypoint IF Autonomous  *********/
+  
+  if (autonomous && gps.location.isValid() && (gps.location.age() <3000 ) && (distance > 1)  ) {
+    //we are in autonomous mode, and have valid location fix
+    //get distance to target, in meters
+    distance = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(),TARGET_LAT, TARGET_LNG);
+    //get course to target, in degrees; North=0, West=270
+    course = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(),TARGET_LAT, TARGET_LNG);
+    //compare with current heading, and determine error. 
+    //If error>0, we need to turn right; if <0, left
+    float error=course-getHeading();
+    if (error > 8)  {
+      turnRight();
+    }
+
+    else if (error < -8)  {
+      turnLeft();
+    }
+
+    else  {
+      motorsForward();
+    }
+    
+    
+    //normalize so that error is between -180 and 180
+    if (error > 180 ) error-=360;
+    if (error < -180 ) error+=360;
+    //set course 
+    //setMotors (60+Kp*error, 60-Kp*error);
+    setMotors (60+Kp*error, 60-Kp*error);
+    //Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); WebSerial.println(60-Kp*error);
+  }
+  //motorsBackward();
+}
+
+void initMotors() {
   // sets the Right motor pins as outputs:
   pinMode(Rt_Motor_IN3, OUTPUT);
   pinMode(Rt_Motor_IN4, OUTPUT);
@@ -158,7 +290,7 @@ void setup() {
   pinMode(Lt_Motor_IN1, OUTPUT);
   pinMode(Lt_Motor_IN2, OUTPUT);
   pinMode(Lt_Motor_Speed, OUTPUT);
-  
+
   // configure LED PWM functionalitites
   ledcSetup(pwmChannelRtMotor, freq, resolution);
   ledcSetup(pwmChannelLtMotor, freq, resolution);
@@ -166,128 +298,42 @@ void setup() {
   // attach the channel to the GPIO to be controlled
   ledcAttachPin(Rt_Motor_Speed, pwmChannelRtMotor);
   ledcAttachPin(Lt_Motor_Speed, pwmChannelLtMotor);
-    
-  Serial.begin(115200);       // serial connection for debugging
-  Serial2.begin(GPSBaud);        //software serial connection to GPS
+  motorsStop();
+  Serial.println("Motors Initialized");
+  WebSerial.println("Motors Initialized");
+}
 
-  /***************** SD CARD INIT - CONVERT TO FUNCTION  ***********/
-  /* DISABLED FOR TESTING
-  while (!Serial) {
-    SysCall::yield();
-  }
-  WebSerial.println("Type any character to start");
-  while (!Serial.available()) {
-    SysCall::yield();
-  }
-*/
-
-/* Commenting out for troubleshooting
-  if (!sd.begin(SD_CHIP_SELECT_PIN)) {
+void initSD() {
+  if (!sd.begin(SD_CONFIG)) {
+    Serial.println("Failed to init SD card. Check wiring.");
+    WebSerial.println("Failed to init SD card. Check wiring.");
     sd.initErrorHalt();
   }
-
+  else  {
   if (!file.open("SoftSPI.txt", O_RDWR | O_CREAT)) {
+    Serial.println("Failed to open SD boot log. Check SD card!");
+    WebSerial.println("Failed to open SD boot log. Check SD card!");
     sd.errorHalt(F("open failed"));
   }
   file.println(F("This line was printed using software SPI."));
 
   file.rewind();
-  
+
   while (file.available()) {
     Serial.write(file.read());
+    //WebSerial.print(file.read());
   }
-  delay(5000);
 
   file.close();
 
-* End comment for troubleshooting
-* 
-*/
-  Serial.println(F("SD Card Initialized"));
-
-  /****************** GPS and Compass Init  ********************/
-    
-    Serial.println("Activating GPS");
-    //Wire.begin(SDAPin, SCLPin); //I2C bus, for compass and sonar sensors
-    /* Initialise the compass sensor */
-    if (mag.begin()) {
-        Serial.println("Compass started");
-    } else  {
-        /* There was a problem detecting the magentometer ... check your connections */
-        Serial.println("Problem starting the compass. Please check connections.");  
-    }
-    
-    //initialize the sonar sensor
-   // Serial.println("Activating the  Sonar"); Serial.println("");
-    //give sensor time to initialize
-   // delay(500);
-    //start pinging
-/*    mySonar.begin();
-    //check sensor status
-    if (mySonar.isActive())   {   
-        //all ok
-        Serial.println("Sonar started");
-    } else  {
-        Serial.println("Problem starting the sonar. Please check connections.");        
-    }
-*/
-    // setup timer which would call updateSensors function every 1000 ms
-    // if you are using local blynk srever, you shoudl certainly send data more frequently, 
-    // e.g. every 250ms
-    // but for blynk's public servers, this will lead to flood errors
-    timer.setInterval(500L, periodicUpdate);
-
-    /************ Blynk Init which also start WiFi in STA mode *********/
-    
-    Serial.println("Starting Blynk and enabling OTA");
-    Blynk.begin(auth, ssid, pass, blynkServer, blynkPortHTTP);
-    // put MowBot on the map
-    myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);
-    //myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");
-
-    /*************** Init OTA *****************/
-    initOTA();
-
-    /************** Init Web Serial **************/
-    // WebSerial is accessible at "<IP Address>/webserial" in browser
-    WebSerial.begin(&server);
-    /* Attach Message Callback */
-    WebSerial.msgCallback(recvMsg);
-    server.begin();
-    Serial.println("MowBot MowBoot SUCCESS!");
-    Serial.print("Connect to WebSerial at: ");
-    Serial.println(WiFi.localIP());
-    WebSerial.println("MowBot MowBoot SUCCESS!");
-}
-
-void loop() {
-    ArduinoOTA.handle();
-    timer.run();//update sensors and send info to cellphone
-    Blynk.run();
-    updateGPS(); //read messages from GPS sensor
-    if (autonomous && gps.location.isValid() && (gps.location.age() <3000 ) && (distance > 1)  ) {
-        //we are in autonomous mode, and have valid location fix
-        //get distance to target, in meters
-        distance = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(),TARGET_LAT, TARGET_LNG);
-        //get course to target, in degrees; North=0, West=270
-        course = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(),TARGET_LAT, TARGET_LNG);
-        //compare with current heading, and determine error. 
-        //If error>0, we need to turn right; if <0, left
-        float error=course-getHeading();
-        //normalize so that error is between -180 and 180
-        if (error > 180 ) error-=360;
-        if (error < -180 ) error+=360;
-        //set course 
-        //setMotors (60+Kp*error, 60-Kp*error);
-        setMotors (60+Kp*error, 60-Kp*error);
-        //Serial.print("LeftM: "); Serial.print(60+Kp*error); Serial.print("   RightM: "); WebSerial.println(60-Kp*error);
-    }
-    
+  Serial.println(F("SD card initialization complete!"));
+  WebSerial.println(F("SD card initialization complete!"));
+  }
 }
 
 void initOTA()  {
   ArduinoOTA.setHostname(robotLabel);
-  ArduinoOTA.setPasswordHash(otaHash);  
+//  ArduinoOTA.setPasswordHash(otaHash);  
   ArduinoOTA
     .onStart([]() {
       String type;
@@ -303,114 +349,126 @@ void initOTA()  {
       WebSerial.println("\nEnd");
     })
     .onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("OTA Update Progress: %u%%\r", (progress / (total / 100)));
+      WebSerial.print("OTA Update Progress: ");
+      WebSerial.print(progress / (total / 100));
     })
     .onError([](ota_error_t error) {
-      Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) WebSerial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) WebSerial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) WebSerial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) WebSerial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) WebSerial.println("End Failed");
+      WebSerial.print("Error[%u]: ");
+      WebSerial.print(error);
+      if (error == OTA_AUTH_ERROR) WebSerial.println(" Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) WebSerial.println(" Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) WebSerial.println(" Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) WebSerial.println(" Receive Failed");
+      else if (error == OTA_END_ERROR) WebSerial.println(" End Failed");
     });
-
   ArduinoOTA.begin();
 }
 
-//periodic update function: read compass and sonar sensors, sned data to Blynk, etc
+float mainBatteryVoltage() {
+  ADC_VALUE = analogRead(Analog_channel_pin);
+  voltage_value = (ADC_VALUE * 3.3 ) / (790);
+  return(voltage_value);
+}
+
+/******   periodic update function: read compass and sonar sensors, sned data to Blynk, etc   ******/
+
 void periodicUpdate() {
-    String line1, line2;
-    //pulse the LED 
-    if (heartbeat) {
-        Blynk.virtualWrite(V1, 255);
-    } else {
-        Blynk.virtualWrite(V1, 0);        
-    }
-    heartbeat=!heartbeat;
-    //get sonars
-//    mySonar.update();
-    // send data to blynk
-    //compass
-    Blynk.virtualWrite(V2, (int)getHeading());
-    
-    //distances
-//    Blynk.virtualWrite(V5, mySonar.distanceL());
-//    Blynk.virtualWrite(V6, mySonar.distanceR());
-   
-    //lcd and map
-    lcd.clear();
-    if (gps.location.isValid() && (gps.location.age() < 3000)) {
-        //position current
-        line1 = String("lat: ") + String(gps.location.lat(), 6);
-        line2 = String("lng: ") + String(gps.location.lng(), 6);
-        lcd.print(0, 0, line1);
-        lcd.print(0, 1, line2);
-        //update position on map
-        myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);
-        myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");
-    } else {
-        //position is old
-        lcd.print(0, 0, "GPS lost");
-    }
-    WebSerial.println("Alive");
+  String line1, line2;
+  //pulse the LED 
+  if (heartbeat) {
+      Blynk.virtualWrite(V1, 255);
+  } else {
+      Blynk.virtualWrite(V1, 0);        
+  }
+  heartbeat=!heartbeat;
+  
+  /******   Write Debug to WebSerial    ********/
+  
+  Serial.print("Distance To Object = ");  Serial.println(sonar.dist()); // return curent distance in serial
+  WebSerial.print("ObjDistance  = ");     WebSerial.println(sonar.dist());
+  WebSerial.print("Heading      = ");     WebSerial.println(getHeading());
+  WebSerial.print("Voltage      = ");     WebSerial.println(mainBatteryVoltage());
+  
+  /******   Send data to blynk    *****/
+  
+  Blynk.virtualWrite(V13, mainBatteryVoltage());  //  Main system supply voltage
+  Blynk.virtualWrite(V2, (int)getHeading());      //  compass
+  Blynk.virtualWrite(V5, sonar.dist());           //  distance from object via Sonar
+  
+  lcd.clear();    //lcd and map
+  if (gps.location.isValid() && (gps.location.age() < 3000)) {
+    line1 = String("lat: ") + String(gps.location.lat(), 6);
+    line2 = String("lng: ") + String(gps.location.lng(), 6);
+    lcd.print(0, 0, line1);
+    lcd.print(0, 1, line2);
+    myMap.location(1, gps.location.lat(), gps.location.lng(), robotLabel);  //  update MowBot position on map
+    myMap.location(2, TARGET_LAT, TARGET_LNG, "Waypoint 1");                //  update current waypoint position on map
+  } else {
+    lcd.print(0, 0, "GPS lost");    //position is old
+  }
 }
 
 
 void updateGPS() {
-    //read data from serial connection to GPS
-    while (Serial2.available() > 0) {
-        gps.encode(Serial2.read());
-    }
+  
+  /*********    read data from serial connection to GPS   *******/
+  
+  while (Serial2.available() > 0) {
+    gps.encode(Serial2.read());
+  }
 }
 
-// Gets new heading info  from compaSerial2. 
+/***********     Gets new heading info  from compass.     *********/
+
 float getHeading() {
-    sensors_event_t event; 
-    mag.getEvent(&event);
-    
-    float X,Y;
-    // Get x,y components of magnetic field vector; values are in micro-Tesla (uT))
-    // and correct for offset 
-    X=event.magnetic.x-Xoffset;
-    Y=event.magnetic.y-Yoffset;
-    float heading = atan2(-X, -Y) * 180/PI;
-    //correct for declination angle 
-    heading += declinationAngle;
-    
-    // correct as needed to guarantee that result is between 0 and 360
-    if (heading < 0) heading += 360;
-    if (heading > 360 ) heading -= 360;
-    return(heading);
+  sensors_event_t event; 
+  mag.getEvent(&event);
+  float X,Y;
+  
+  /* 
+  *  Get x,y components of magnetic field vector; values are in micro-Tesla (uT))
+  *  and correct for offset 
+  */
+  
+  X=event.magnetic.x-Xoffset;
+  Y=event.magnetic.y-Yoffset;
+  float heading = atan2(-X, -Y) * 180/PI;
+  
+  //correct for declination angle 
+  heading += declinationAngle;
+  
+  // correct as needed to guarantee that result is between 0 and 360
+  if (heading < 0) heading += 360;
+  if (heading > 360 ) heading -= 360;
+  return(heading);
 }
 
-int motorSpeed;
-
-//code to run when receiving change on V0
 BLYNK_WRITE(V0) {
-    autonomous=param.asInt();  
-    //if stopped, grey out the joystick
-    if (autonomous) {
-        Blynk.setProperty(V7, "color", "#000000");
-        WebSerial.println("Autonomous Mode Enabled");
-    } else {
-        Blynk.setProperty(V7, "color", "#00FF00");
-        WebSerial.println("Autonomous Mode Disabled");    
-    }
+  autonomous=param.asInt();  
+  //if stopped, grey out the joystick
+  if (autonomous) {
+    Blynk.setProperty(V7, "color", "#000000");
+    WebSerial.println("Autonomous Mode Enabled");
+    Serial.println("Autonomous Mode Enabled");
+  } else {
+    Blynk.setProperty(V7, "color", "#00FF00");
+    WebSerial.println("Autonomous Mode Disabled");    
+    Serial.println("Autonomous Mode Disabled"); 
+  }
 }
-
 
 BLYNK_WRITE(V7) {     
-    /*    TODO: Create 4 buttons in Blynk for forward, back, left, right + 2 for rotate left, rotate right 
-     *    To use joystick, set joystick in app to send between -255, 255. If negative, set motor in backward direction
-     */
-    int x = param[0].asInt(); //now x,y are between -255 and 255
-    int y = param[1].asInt();
-    //make deadzone for turns. 
-    float powerLeft;
-    float powerRight;
-    if (!autonomous) {
-        setMotors(powerLeft, powerRight);
-    }
+  /*    TODO: Create 4 buttons in Blynk for forward, back, left, right + 2 for rotate left, rotate right 
+   *    To use joystick, set joystick in app to send between -255, 255. If negative, set motor in backward direction
+   */
+  int x = param[0].asInt(); //now x,y are between -255 and 255
+  int y = param[1].asInt();
+  //make deadzone for turns. 
+  float powerLeft;
+  float powerRight;
+  if (!autonomous) {
+    setMotors(powerLeft, powerRight);
+  }
 }
 
 BLYNK_WRITE(V10) {  // Forward / Backward
@@ -425,7 +483,6 @@ BLYNK_WRITE(V10) {  // Forward / Backward
     ledcWrite(pwmChannelRtMotor, dutyCycle);   
     ledcWrite(pwmChannelLtMotor, dutyCycle);
   }
-
   Blynk.virtualWrite(V8, motorSpeed);
   Blynk.virtualWrite(V9, motorSpeed);
 }
@@ -467,46 +524,46 @@ void motorsStop() {
 }
 
 void motorsForward() {
-  digitalWrite(Lt_Motor_IN1, HIGH);
-  digitalWrite(Lt_Motor_IN2, LOW);
-  digitalWrite(Rt_Motor_IN3, LOW);
-  digitalWrite(Rt_Motor_IN4, HIGH);
+  digitalWrite(Lt_Motor_IN1, LOW);
+  digitalWrite(Lt_Motor_IN2, HIGH);
+  digitalWrite(Rt_Motor_IN3, HIGH);
+  digitalWrite(Rt_Motor_IN4, LOW);
   Serial.println("Moving Forward");
   setMotors(dutyCycle, dutyCycle);
 }
 
 void motorsBackward() {
-  digitalWrite(Lt_Motor_IN1, LOW);
-  digitalWrite(Lt_Motor_IN2, HIGH); 
-  digitalWrite(Rt_Motor_IN3, HIGH);
-  digitalWrite(Rt_Motor_IN4, LOW);
+  digitalWrite(Lt_Motor_IN1, HIGH);
+  digitalWrite(Lt_Motor_IN2, LOW); 
+  digitalWrite(Rt_Motor_IN3, LOW);
+  digitalWrite(Rt_Motor_IN4, HIGH);
   Serial.println("Moving Backwards");
   setMotors(dutyCycle, dutyCycle);
 }
 
 void turnRight() {
-  digitalWrite(Lt_Motor_IN1, HIGH);
-  digitalWrite(Lt_Motor_IN2, LOW); 
+  digitalWrite(Lt_Motor_IN1, LOW);
+  digitalWrite(Lt_Motor_IN2, HIGH); 
   digitalWrite(Rt_Motor_IN3, LOW);
   digitalWrite(Rt_Motor_IN4, LOW);
   Serial.println("Turning Right");
-  setMotors(dutyCycle, 0);
+  setMotors(dutyCycle, dutyCycle);
 }
 
 void turnLeft() {
   digitalWrite(Lt_Motor_IN1, LOW);
   digitalWrite(Lt_Motor_IN2, LOW); 
-  digitalWrite(Rt_Motor_IN3, LOW);
-  digitalWrite(Rt_Motor_IN4, HIGH);
+  digitalWrite(Rt_Motor_IN3, HIGH);
+  digitalWrite(Rt_Motor_IN4, LOW);
   Serial.println("Turnin Layuft");
-  setMotors(0, dutyCycle);
+  setMotors(dutyCycle, dutyCycle);
 }
 
 
 void setMotors(float left, float right) {
   
-  ledcWrite(pwmChannelRtMotor, left);   
-  ledcWrite(pwmChannelLtMotor, right);
+  ledcWrite(pwmChannelRtMotor, right);   
+  ledcWrite(pwmChannelLtMotor, left);
   Blynk.virtualWrite(V8, left);
   Blynk.virtualWrite(V9, right);
 
