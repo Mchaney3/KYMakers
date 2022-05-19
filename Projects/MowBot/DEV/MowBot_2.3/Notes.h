@@ -1,3 +1,7 @@
+***   IMPORTANT
+Check my wires for left motor. It spins in one direction but not the other 
+indicating either the code isn;t setting IN4 LOW or HIGH or the wire is bad
+
 DIRECTION  INPUT 1 INPUT 2 INPUT 3 INPUT 4
 Forward 0 1 0 1
 Backward  1 0 1 0

@@ -17,8 +17,8 @@
 #include <ESPAsyncWebServer.h>
 #include <WebSerial.h>
 
-//#include <SPI.h>
-//#include <SdFat.h>
+#include <SPI.h>
+#include <SdFat.h>
 
 /********************  Motor Setup  *************/
 
