@@ -58,6 +58,9 @@ const char* ssid = "chlabs_bot";
 const char* password = "chlabsrobotseverywhere";
 char otaHash[] = "ee59085accf685157a4c8cb7d1a76887";
 
+const int Analog_channel_pin= 39;
+int ADC_VALUE = 0;
+float voltage_value = 0.0; 
 
 
 void setup() {
@@ -67,6 +70,15 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
+  ADC_VALUE = analogRead(Analog_channel_pin);
+  Serial.print(" ADC VALUE = ");
+  Serial.println(ADC_VALUE);
+  delay(1000);
+  //voltage_value = (ADC_VALUE * 12.6 ) / (3071);
+  voltage_value = (ADC_VALUE * 3.3 ) / (790);
+  Serial.print("Voltage = ");
+  Serial.print(voltage_value);
+  Serial.print(" volts");
   delay(1000);
 }
 

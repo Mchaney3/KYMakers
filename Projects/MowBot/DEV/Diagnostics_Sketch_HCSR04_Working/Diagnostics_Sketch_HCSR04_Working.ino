@@ -58,6 +58,9 @@ const char* ssid = "chlabs_bot";
 const char* password = "chlabsrobotseverywhere";
 char otaHash[] = "ee59085accf685157a4c8cb7d1a76887";
 
+#include <HCSR04.h>
+
+HCSR04 hc(26, 27); //initialisation class HCSR04 (trig pin , echo pin)
 
 
 void setup() {
@@ -67,7 +70,8 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
-  delay(1000);
+  Serial.println(hc.dist()); // return curent distance in serial
+  delay(60);                 // we suggest to use over 60ms measurement cycle, in order to prevent trigger signal to the echo signal.
 }
 
 void initOTA()  {

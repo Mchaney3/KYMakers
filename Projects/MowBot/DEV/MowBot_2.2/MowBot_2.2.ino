@@ -20,7 +20,24 @@
 //#include <SPI.h>
 //#include <SdFat.h>
 
-#include "BTS7960.h"
+/********************  Motor Setup  *************/
+
+// Right Motor
+int Rt_Motor_Speed = 13; 
+int Rt_Motor_IN3 = 12; 
+int Rt_Motor_IN4 = 14;
+
+// Left Motor
+int Lt_Motor_Speed = 2; 
+int Lt_Motor_IN1 = 16; 
+int Lt_Motor_IN2 = 15; 
+
+// Setting PWM properties
+const int freq = 30000;
+const int pwmChannelRtMotor = 0;
+const int pwmChannelLtMotor = 0;
+const int resolution = 8;
+int dutyCycle = 200;
 
 /********************  SD Card Setup  *************/
 
@@ -101,14 +118,7 @@ SimpleTimer timer; //to control periodic querying sensors and sending  data to B
 static const int RXPin = 18, // the serial connection to GPS. Note that RX, TX
                  TXPin = 17, // refer to 'device view'
                  SDAPin = 21, SCLPin = 22; //I2C pins
-                 //Motor1aPin = 12, Motor1bPin = 13,
-                 //Motor2aPin = 14, Motor2bPin = 15;
 
-const uint8_t EN = 19; // This is two pins going each enable pin. One output with two wires. One enable pin per motor, controllled via one output
-const uint8_t L_PWM = 20; // Left Motor Speed. analogWrite 0 - 255 - Left motor PWM pin
-const uint8_t R_PWM = 21; // Right Motor Speed. analogWrite 0 - 255 - Right motor PWM pin
-
-BTS7960 motorController(EN, L_PWM, R_PWM);
 
 /* ************  GPS and compass  ************ */
 static const float Xoffset=20, Yoffset=-97;     // offsets for magnetometer readings                 
@@ -138,19 +148,31 @@ float distance=1000,  ///distance to target, in meters
  *************************************************/
 
 void setup() {
-    //set up motor pins - Not needed for BTS7960 Library
-    //pinMode(Motor1aPin, OUTPUT);
-    //pinMode(Motor1bPin, OUTPUT);
-    //pinMode(Motor2aPin, OUTPUT);
-    //pinMode(Motor2bPin, OUTPUT);
-    motorController.Enable();
+  
+  // sets the Right motor pins as outputs:
+  pinMode(Rt_Motor_IN3, OUTPUT);
+  pinMode(Rt_Motor_IN4, OUTPUT);
+  pinMode(Rt_Motor_Speed, OUTPUT);
+  
+  // sets the Left motor pins as outputs:
+  pinMode(Lt_Motor_IN1, OUTPUT);
+  pinMode(Lt_Motor_IN2, OUTPUT);
+  pinMode(Lt_Motor_Speed, OUTPUT);
+  
+  // configure LED PWM functionalitites
+  ledcSetup(pwmChannelRtMotor, freq, resolution);
+  ledcSetup(pwmChannelLtMotor, freq, resolution);
+  
+  // attach the channel to the GPIO to be controlled
+  ledcAttachPin(Rt_Motor_Speed, pwmChannelRtMotor);
+  ledcAttachPin(Lt_Motor_Speed, pwmChannelLtMotor);
     
-    Serial.begin(115200);       // serial connection for debugging
-    Serial2.begin(GPSBaud);        //software serial connection to GPS
+  Serial.begin(115200);       // serial connection for debugging
+  Serial2.begin(GPSBaud);        //software serial connection to GPS
 
-    /***************** SD CARD INIT - CONVERT TO FUNCTION  ***********/
-    /* DISABLED FOR TESTING
-    while (!Serial) {
+  /***************** SD CARD INIT - CONVERT TO FUNCTION  ***********/
+  /* DISABLED FOR TESTING
+  while (!Serial) {
     SysCall::yield();
   }
   WebSerial.println("Type any character to start");
@@ -361,6 +383,8 @@ float getHeading() {
     return(heading);
 }
 
+int motorSpeed;
+
 //code to run when receiving change on V0
 BLYNK_WRITE(V0) {
     autonomous=param.asInt();  
@@ -375,24 +399,100 @@ BLYNK_WRITE(V0) {
 }
 
 
-BLYNK_WRITE(V7) {//joystick input from the app 
-    int x = param[0].asInt(); //now x,y are between -512 and 512
+BLYNK_WRITE(V7) {     
+    /*    TODO: Create 4 buttons in Blynk for forward, back, left, right + 2 for rotate left, rotate right 
+     *    To use joystick, set joystick in app to send between -255, 255. If negative, set motor in backward direction
+     */
+    int x = param[0].asInt(); //now x,y are between -255 and 255
     int y = param[1].asInt();
     //make deadzone for turns. 
-    float powerLeft = (y - x) / 512.0;
-    float powerRight = (y + x) / 512.0;
+    float powerLeft;
+    float powerRight;
     if (!autonomous) {
         setMotors(powerLeft, powerRight);
     }
 }
+
+BLYNK_WRITE(V10) {  // Forward / Backward
+  motorSpeed = param[0].asInt();
+  if (motorSpeed == -1)  {    //    if -200
+    motorsForward();
+    ledcWrite(pwmChannelRtMotor, dutyCycle);   
+    ledcWrite(pwmChannelLtMotor, dutyCycle);
+  }
+  else if (motorSpeed == 1) {
+    motorsBackward();
+    ledcWrite(pwmChannelRtMotor, dutyCycle);   
+    ledcWrite(pwmChannelLtMotor, dutyCycle);
+  }
+
+  Blynk.virtualWrite(V8, motorSpeed);
+  Blynk.virtualWrite(V9, motorSpeed);
+}
+
+BLYNK_WRITE(V11) {  // Left / Right
+  
+}
+
+BLYNK_WRITE(V12) {  // STOP
+    
+    motorsStop();
+    Blynk.virtualWrite(V8, 0);
+    Blynk.virtualWrite(V9, 0);
+}
+
+
 /*
  *  Set motors. Each motor power shoudl be float between -1 and 1
  *  If values are outside of this range, both vlaues will be rescaled:  
  *  e.g., calling setMotors(1.0,2.0) is same as setMotors(0.5, 1.0)
  */
+
+
+
+
+ /*******   MY MOTOR SOLUTION
+  
+  *    Start with basic dumb forward back left right controls using values of 200 - 255
+  *    Write function for left motor forward, right motor forward, left motor backward, right motor backward
+*/
+
+void motorsForward() {
+  digitalWrite(Lt_Motor_IN1, LOW);
+  digitalWrite(Lt_Motor_IN2, HIGH);
+  digitalWrite(Rt_Motor_IN3, LOW);
+  digitalWrite(Rt_Motor_IN4, HIGH);
+  Serial.println("Moving Forward");
+}
+
+void motorsStop() {
+  ledcWrite(pwmChannelRtMotor, 0);   
+  ledcWrite(pwmChannelLtMotor, 0);
+  digitalWrite(Lt_Motor_IN1, LOW);
+  digitalWrite(Lt_Motor_IN2, LOW);
+  digitalWrite(Rt_Motor_IN3, LOW);
+  digitalWrite(Rt_Motor_IN4, LOW);
+  Serial.println("Motors stopped");
+}
+
+void motorsBackward() {
+  digitalWrite(Lt_Motor_IN1, HIGH);
+  digitalWrite(Lt_Motor_IN2, LOW); 
+  digitalWrite(Rt_Motor_IN3, HIGH);
+  digitalWrite(Rt_Motor_IN4, LOW);
+  Serial.println("Moving Backwards");
+}
+
+
+
 void setMotors(float left, float right) {
   
+    ledcWrite(pwmChannelRtMotor, right);   
+    ledcWrite(pwmChannelLtMotor, left);
+    Blynk.virtualWrite(V8, left);
+    Blynk.virtualWrite(V9, right);
 
+    /*
   
     //compute the max of two numbers. Unfortunately, 
     //usual max macro doesn't work: https://github.com/esp8266/Arduino/issues/398
@@ -442,8 +542,9 @@ void setMotors(float left, float right) {
         analogWrite(Motor2aPin, -right * 1023);
         analogWrite(Motor2bPin, 0);
     }
-    */
-    Blynk.virtualWrite(V8, left);
-    Blynk.virtualWrite(V9, right);
+    
+
     //Serial.print("Left: "); Serial.print(left); Serial.print("\nRight: "); WebSerial.println(right);
+    
+    */
 }
